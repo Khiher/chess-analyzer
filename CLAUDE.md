@@ -63,16 +63,15 @@ Three process contexts, strictly separated:
 
 - **`main` is the integration branch.** Do work on a feature branch and merge via
   a pull request; CI (`.github/workflows/ci.yml`) must be green before merge.
-- **Direct pushes to `main` are blocked** by a committed pre-push hook
-  (`.githooks/pre-push`), which also runs `npm run check` before any push. The
-  hook is activated by the `prepare` script on `npm install`; enable it manually
-  with `git config core.hooksPath .githooks`. Emergency bypass: `git push
-  --no-verify`.
-- Server-side branch protection is **not** enabled because it requires GitHub Pro
-  on a private repo. If the repo is upgraded or made public, enable a ruleset on
-  `main` requiring the four CI checks + PRs (see the stored ruleset JSON in the
-  project setup history) and the client hook becomes a convenience rather than
-  the primary guard.
+- **Direct pushes to `main` are blocked server-side** by the `protect-main`
+  repository ruleset, which requires a pull request and all four green CI checks
+  (`Lint, type-check & test` + the three `Electron build (*)` jobs) before merge,
+  and forbids force-pushes and branch deletion.
+- A committed pre-push hook (`.githooks/pre-push`) gives the same guard locally
+  plus a fast `npm run check` before every push, so problems surface before they
+  reach CI. It is activated by the `prepare` script on `npm install` (or manually
+  with `git config core.hooksPath .githooks`). Emergency bypass: `git push
+  --no-verify` (the server ruleset still applies).
 - Run `npm run check` before opening a PR; it mirrors the CI gate exactly.
 
 ## Analysis model
