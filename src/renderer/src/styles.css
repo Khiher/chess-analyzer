@@ -39,6 +39,13 @@ header {
   justify-content: space-between;
 }
 
+.status {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
 h1 {
   font-size: 20px;
   margin: 0;
@@ -107,12 +114,27 @@ button:disabled {
 }
 
 .move {
+  font-size: 14px;
+}
+
+.move-btn {
   display: flex;
+  width: 100%;
   justify-content: space-between;
+  align-items: center;
   background: var(--panel);
+  color: var(--text);
+  border: 1px solid transparent;
   border-radius: 6px;
   padding: 6px 12px;
-  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+}
+.move-btn:hover:not(:disabled) {
+  border-color: #34343a;
+}
+.move-btn.selected {
+  border-color: var(--accent);
 }
 
 .move .tag {
@@ -129,4 +151,23 @@ button:disabled {
 .move.brilliant .tag,
 .move.great .tag {
   color: var(--good);
+}
+
+.coach {
+  background: var(--panel);
+  border: 1px solid #34343a;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-top: 8px;
+}
+.coach h2 {
+  font-size: 14px;
+  margin: 0 0 8px;
+  color: var(--accent);
+}
+.coach-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
 }

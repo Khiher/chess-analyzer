@@ -4,7 +4,9 @@ import {
   IpcEvent,
   type AnalysisProgress,
   type AnalyzeGameRequest,
-  type ChessApi
+  type ChessApi,
+  type CoachTokenEvent,
+  type ExplainMoveRequest
 } from '@shared/ipc'
 
 /**
@@ -22,6 +24,13 @@ const api: ChessApi = {
     const handler = (_e: unknown, payload: AnalysisProgress): void => listener(payload)
     ipcRenderer.on(IpcEvent.AnalysisProgress, handler)
     return () => ipcRenderer.removeListener(IpcEvent.AnalysisProgress, handler)
+  },
+  explainMove: (req: ExplainMoveRequest) => ipcRenderer.invoke(IpcChannel.ExplainMove, req),
+  getCoachInfo: () => ipcRenderer.invoke(IpcChannel.GetCoachInfo),
+  onCoachToken: (listener) => {
+    const handler = (_e: unknown, payload: CoachTokenEvent): void => listener(payload)
+    ipcRenderer.on(IpcEvent.CoachToken, handler)
+    return () => ipcRenderer.removeListener(IpcEvent.CoachToken, handler)
   }
 }
 
