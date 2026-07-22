@@ -16,12 +16,15 @@ export const IpcChannel = {
   ImportFromUrl: 'game:import-from-url',
   AnalyzeGame: 'analysis:analyze-game',
   CancelAnalysis: 'analysis:cancel',
-  GetEngineInfo: 'engine:info'
+  GetEngineInfo: 'engine:info',
+  ExplainMove: 'coach:explain-move',
+  GetCoachInfo: 'coach:info'
 } as const
 
 /** One-way progress events (main emits, renderer subscribes). */
 export const IpcEvent = {
-  AnalysisProgress: 'analysis:progress'
+  AnalysisProgress: 'analysis:progress',
+  CoachToken: 'coach:token'
 } as const
 
 export interface AnalyzeGameRequest {
@@ -47,6 +50,26 @@ export interface EngineInfo {
   readonly path: string | null
 }
 
+/** Ask the coach to explain a single analyzed half-move of the last game. */
+export interface ExplainMoveRequest {
+  /** 0-based ply index into the analyzed game's move list. */
+  readonly ply: number
+  /** Optional free-form question about the move. */
+  readonly question?: string
+}
+
+/** Which coach backend is active and whether it can answer right now. */
+export interface CoachInfo {
+  readonly backend: 'ollama' | 'cloud' | 'template'
+  readonly available: boolean
+  readonly model: string | null
+}
+
+/** One streamed chunk of a coach explanation. */
+export interface CoachTokenEvent {
+  readonly chunk: string
+}
+
 /** Shape exposed on `window.chess` by the preload bridge. */
 export interface ChessApi {
   importPgn(pgn: string): Promise<ParsedGame>
@@ -55,4 +78,9 @@ export interface ChessApi {
   cancelAnalysis(): Promise<void>
   getEngineInfo(): Promise<EngineInfo>
   onAnalysisProgress(listener: (p: AnalysisProgress) => void): () => void
+  /** Explain a move of the most recently analyzed game; resolves with full text. */
+  explainMove(req: ExplainMoveRequest): Promise<string>
+  getCoachInfo(): Promise<CoachInfo>
+  /** Subscribe to streamed explanation chunks; returns an unsubscribe function. */
+  onCoachToken(listener: (e: CoachTokenEvent) => void): () => void
 }

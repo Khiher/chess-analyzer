@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { AnalyzeGameResult } from '@shared/ipc'
+import type { AnalyzeGameResult, CoachInfo } from '@shared/ipc'
 import type { Color, MoveClassification } from '@core/types'
 import { classificationCounts, classificationView, formatScore, uciToSquares } from '../lib/review'
 import { BoardPanel } from './BoardPanel'
@@ -35,7 +35,31 @@ export function ReviewScreen({ result, onNewGame }: ReviewScreenProps): React.JS
   const [ply, setPly] = useState(-1)
   const [orientation, setOrientation] = useState<Color>('white')
 
+  // Coach: explains the selected move on demand. It streams tokens for a live
+  // feel and resolves with the full text; `coachPly` tracks which move the
+  // current explanation belongs to so it hides when the user navigates away.
+  const [coachInfo, setCoachInfo] = useState<CoachInfo | null>(null)
+  const [coachPly, setCoachPly] = useState<number | null>(null)
+  const [coachText, setCoachText] = useState('')
+  const [coachBusy, setCoachBusy] = useState(false)
+
   const clampPly = useCallback((p: number) => Math.max(-1, Math.min(lastPly, p)), [lastPly])
+
+  useEffect(() => {
+    void window.chess.getCoachInfo().then(setCoachInfo)
+    return window.chess.onCoachToken((e) => setCoachText((prev) => prev + e.chunk))
+  }, [])
+
+  const askCoach = useCallback((p: number): void => {
+    setCoachPly(p)
+    setCoachText('')
+    setCoachBusy(true)
+    void window.chess
+      .explainMove({ ply: p })
+      .then(setCoachText) // authoritative final text (also assembled from streamed chunks)
+      .catch((err: unknown) => setCoachText(err instanceof Error ? err.message : String(err)))
+      .finally(() => setCoachBusy(false))
+  }, [])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent): void {
@@ -166,6 +190,29 @@ export function ReviewScreen({ result, onNewGame }: ReviewScreenProps): React.JS
               ⇅ Flip
             </button>
           </div>
+
+          {currentMove && (
+            <div className="coach">
+              <div className="coach-head">
+                <h2>Coach</h2>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => askCoach(ply)}
+                  disabled={coachBusy}
+                >
+                  {coachBusy && coachPly === ply ? 'Thinking…' : 'Explain this move'}
+                </button>
+                {coachInfo && (
+                  <span className="coach-backend">
+                    {coachInfo.backend}
+                    {coachInfo.model ? ` · ${coachInfo.model}` : ''}
+                  </span>
+                )}
+              </div>
+              {coachPly === ply && coachText && <p className="coach-text">{coachText}</p>}
+            </div>
+          )}
         </aside>
       </div>
     </div>

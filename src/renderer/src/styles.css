@@ -473,3 +473,33 @@ textarea {
 .nav button.flip {
   margin-left: auto;
 }
+
+/* --- Coach panel --- */
+.coach {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+.coach-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.coach-head h2 {
+  font-size: 14px;
+  margin: 0;
+  color: var(--accent);
+}
+.coach-backend {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: capitalize;
+}
+.coach-text {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

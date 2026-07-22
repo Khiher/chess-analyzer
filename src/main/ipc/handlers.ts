@@ -1,16 +1,19 @@
 import { ipcMain, type BrowserWindow } from 'electron'
-import { parsePgn } from '@core/index'
+import { buildMoveFacts, parsePgn } from '@core/index'
 import {
   IpcChannel,
   IpcEvent,
   type AnalyzeGameRequest,
   type AnalyzeGameResult,
-  type EngineInfo
+  type CoachInfo,
+  type EngineInfo,
+  type ExplainMoveRequest
 } from '@shared/ipc'
 import { EnginePool } from '../engine/engine-pool'
 import { resolveStockfishPath } from '../engine/stockfish-path'
-import { analyzeGame } from '../analysis/pipeline'
+import { analyzeGame, type GameReview } from '../analysis/pipeline'
 import { fetchGamePgn } from '../importers/lichess'
+import { createCoachRuntime } from '../coach'
 
 const DEFAULT_DEPTH = 16
 
@@ -30,6 +33,12 @@ let activePool: EnginePool | null = null
  * typed contract, and all engine/network/file work stays on this side.
  */
 export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void {
+  // The coach explains moves of the most recently analyzed game, so we keep the
+  // last review in memory rather than re-running the engine. This is the seam
+  // where a keyed CacheStore drops in later (see roadmap notes).
+  let lastReview: GameReview | null = null
+  const coach = createCoachRuntime()
+
   ipcMain.handle(IpcChannel.ImportPgn, (_e, pgn: string) => {
     // Parse eagerly so malformed PGN fails fast with a clear error.
     return parsePgn(pgn)
@@ -64,6 +73,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
             })
           }
         })
+        lastReview = review
         return review
       } catch (err) {
         // Translate a cancellation into the sentinel the renderer expects; let
@@ -84,6 +94,29 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   ipcMain.handle(IpcChannel.GetEngineInfo, (): EngineInfo => {
     const path = resolveStockfishPath()
     return { name: 'Stockfish', available: path !== null, path }
+  })
+
+  ipcMain.handle(IpcChannel.ExplainMove, async (_e, req: ExplainMoveRequest): Promise<string> => {
+    if (!lastReview) {
+      throw new Error('No analyzed game available. Analyze a game first.')
+    }
+    const facts = buildMoveFacts(
+      {
+        headers: lastReview.game.headers,
+        moves: lastReview.moves,
+        accuracy: lastReview.accuracy
+      },
+      req.ply
+    )
+    const input = req.question !== undefined ? { facts, question: req.question } : { facts }
+    return coach.explainMove(input, (chunk) => {
+      getWindow()?.webContents.send(IpcEvent.CoachToken, { chunk })
+    })
+  })
+
+  ipcMain.handle(IpcChannel.GetCoachInfo, async (): Promise<CoachInfo> => {
+    const status = await coach.status()
+    return { backend: status.backend, available: status.available, model: status.model }
   })
 }
 
