@@ -80,6 +80,9 @@ function buildAnalyzedMove(
     accuracy,
     classification,
     bestMoveUci,
+    bestLineUci: evalBefore?.pv ?? [],
+    playedLineUci: evalAfter?.pv ?? [],
+    scoreBefore,
     scoreAfter
   }
 }
