@@ -1,0 +1,8 @@
+node_modules
+out
+dist
+coverage
+resources/engines
+resources/models
+*.md
+package-lock.json

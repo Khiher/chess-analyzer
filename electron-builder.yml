@@ -1,0 +1,32 @@
+appId: com.chessanalyzer.app
+productName: Chess Analyzer
+directories:
+  buildResources: build
+  output: dist
+
+files:
+  - out/**
+  - package.json
+
+# Ship the engine binaries (and, later, model files) alongside the app.
+extraResources:
+  - from: resources/engines
+    to: engines
+    filter:
+      - '**/*'
+      - '!README.md'
+
+# Skip native rebuild step until a native module (e.g. better-sqlite3) is added.
+npmRebuild: false
+
+win:
+  target:
+    - nsis
+mac:
+  target:
+    - dmg
+  category: public.app-category.games
+linux:
+  target:
+    - AppImage
+  category: Game
