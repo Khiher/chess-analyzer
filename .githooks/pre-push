@@ -1,0 +1,33 @@
+#!/bin/sh
+# Client-side stand-in for branch protection (GitHub Pro is required to enforce
+# this server-side on a private repo). Two guards:
+#   1. Refuse to push directly to main — changes should land via a PR.
+#   2. Run the full check gate (format, lint, typecheck, test) before pushing.
+#
+# Bypass in a genuine emergency with:  git push --no-verify
+#
+# Enable after cloning with:  git config core.hooksPath .githooks
+# (the "prepare" npm script does this automatically on `npm install`).
+
+protected="main"
+remote_ref_prefix="refs/heads/"
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  branch="${remote_ref#$remote_ref_prefix}"
+  if [ "$branch" = "$protected" ]; then
+    echo "✋ Direct pushes to '$protected' are blocked. Open a pull request instead."
+    echo "   (Override for emergencies with: git push --no-verify)"
+    exit 1
+  fi
+done
+
+# Run checks if a Node toolchain is available; otherwise warn but don't block.
+if command -v npm >/dev/null 2>&1; then
+  echo "▶ Running check gate before push (npm run check)…"
+  if ! npm run --silent check; then
+    echo "✋ Checks failed — push aborted. Fix the issues or use: git push --no-verify"
+    exit 1
+  fi
+else
+  echo "⚠ npm not found on PATH; skipping local checks (CI will still run)."
+fi

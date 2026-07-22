@@ -59,6 +59,22 @@ Three process contexts, strictly separated:
    `resources/engines/README.md`). They are resolved at runtime / bundled at
    package time.
 
+## Contribution workflow (stable-repo rules)
+
+- **`main` is the integration branch.** Do work on a feature branch and merge via
+  a pull request; CI (`.github/workflows/ci.yml`) must be green before merge.
+- **Direct pushes to `main` are blocked** by a committed pre-push hook
+  (`.githooks/pre-push`), which also runs `npm run check` before any push. The
+  hook is activated by the `prepare` script on `npm install`; enable it manually
+  with `git config core.hooksPath .githooks`. Emergency bypass: `git push
+  --no-verify`.
+- Server-side branch protection is **not** enabled because it requires GitHub Pro
+  on a private repo. If the repo is upgraded or made public, enable a ruleset on
+  `main` requiring the four CI checks + PRs (see the stored ruleset JSON in the
+  project setup history) and the client hook becomes a convenience rather than
+  the primary guard.
+- Run `npm run check` before opening a PR; it mirrors the CI gate exactly.
+
 ## Analysis model
 
 Win% and accuracy use the documented Lichess model (Chess.com's is proprietary);
