@@ -42,3 +42,6 @@ Thumbs.db
 
 # Local user data produced at runtime
 userData/
+
+# Claude Code local worktrees & settings (never committed)
+.claude/

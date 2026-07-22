@@ -8,11 +8,12 @@ import globals from 'globals'
 export default tseslint.config(
   {
     ignores: [
-      'node_modules/**',
-      'out/**',
-      'dist/**',
-      'coverage/**',
+      '**/node_modules/**',
+      '**/out/**',
+      '**/dist/**',
+      '**/coverage/**',
       'resources/**',
+      '.claude/**',
       '**/*.tsbuildinfo'
     ]
   },
