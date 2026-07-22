@@ -8,9 +8,18 @@ import type { PositionEval } from '@core/types'
  * concurrency so a full-game analysis doesn't spawn dozens of Stockfish
  * processes and starve the machine.
  */
+/** Thrown by {@link EnginePool.analyzePositions} when analysis was cancelled. */
+export class AnalysisCancelledError extends Error {
+  constructor() {
+    super('Analysis cancelled')
+    this.name = 'AnalysisCancelledError'
+  }
+}
+
 export class EnginePool {
   private engines: UciEngine[] = []
   private readonly size: number
+  private cancelled = false
 
   constructor(
     private readonly enginePath: string,
@@ -18,6 +27,21 @@ export class EnginePool {
   ) {
     // Leave headroom for the UI/OS; never fewer than one worker.
     this.size = size ?? Math.max(1, Math.min(4, cpus().length - 1))
+  }
+
+  /** Whether this pool was cancelled (lets callers distinguish cancel from error). */
+  get wasCancelled(): boolean {
+    return this.cancelled
+  }
+
+  /**
+   * Cancel any in-flight analysis. Sets the cancel flag and stops every engine,
+   * which rejects the pending analyze() calls; {@link analyzePositions} then
+   * throws {@link AnalysisCancelledError} instead of returning partial results.
+   */
+  async cancel(): Promise<void> {
+    this.cancelled = true
+    await this.stop()
   }
 
   async start(): Promise<void> {
@@ -47,17 +71,26 @@ export class EnginePool {
 
     const worker = async (engine: UciEngine): Promise<void> => {
       while (true) {
+        if (this.cancelled) return
         const index = nextIndex++
         if (index >= fens.length) return
         const fen = fens[index]
         if (fen === undefined) return
-        results[index] = await engine.analyze({ fen, depth })
+        try {
+          results[index] = await engine.analyze({ fen, depth })
+        } catch (err) {
+          // A rejection during cancellation is expected (we killed the engine);
+          // swallow it so only the real errors propagate.
+          if (this.cancelled) return
+          throw err
+        }
         completed += 1
         onProgress?.(completed, fens.length)
       }
     }
 
     await Promise.all(this.engines.map((engine) => worker(engine)))
+    if (this.cancelled) throw new AnalysisCancelledError()
     return results
   }
 
