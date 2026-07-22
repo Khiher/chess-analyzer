@@ -78,6 +78,19 @@ export interface AnalyzedMove extends GamePosition {
   readonly classification: MoveClassification
   /** Engine's preferred move in this position (UCI), if different from played. */
   readonly bestMoveUci: string | null
+  /**
+   * Engine's principal variation from BEFORE this move (UCI), i.e. the line it
+   * recommends instead of what was played. Empty when unavailable.
+   */
+  readonly bestLineUci: readonly string[]
+  /**
+   * Engine's principal variation from AFTER the played move (UCI), i.e. the
+   * expected continuation given the move that was actually played. Empty when
+   * unavailable.
+   */
+  readonly playedLineUci: readonly string[]
+  /** Evaluation of the position before the played move, White's perspective. */
+  readonly scoreBefore: Score
   /** Evaluation of the position after the played move, White's perspective. */
   readonly scoreAfter: Score
 }
