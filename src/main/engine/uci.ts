@@ -86,6 +86,13 @@ export class UciEngine extends EventEmitter {
   /** Terminate the engine process. Promise-typed for a uniform pool API. */
   stop(): Promise<void> {
     if (!this.proc) return Promise.resolve()
+    // If an analyze() is still in flight (e.g. the user cancelled), reject it
+    // before we tear the process down so the caller doesn't hang waiting for a
+    // `bestmove` that will never arrive. Guard the emit: EventEmitter throws on
+    // an 'error' with no listeners, and there is none after a normal analysis.
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', new Error('Engine stopped before analysis completed'))
+    }
     this.send('quit')
     this.proc.kill()
     this.rl?.close()

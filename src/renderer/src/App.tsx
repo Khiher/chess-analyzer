@@ -1,17 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { AnalyzeGameResult, AnalysisProgress, EngineInfo } from '@shared/ipc'
+import { ImportPanel } from './components/ImportPanel'
+import { ReviewScreen } from './components/ReviewScreen'
+
+/** Message the main process uses to mark a cancelled (vs failed) analysis. */
+const CANCELLED_MARKER = 'ANALYSIS_CANCELLED'
 
 /**
- * Minimal end-to-end shell: paste a PGN, run analysis, show per-move verdicts
- * and game accuracy. This is intentionally plain — the real board, eval bar, and
- * coaching UI build on top of this same `window.chess` bridge.
+ * Top-level app: owns the import → analyze → review flow and the single
+ * `window.chess` bridge. The heavy lifting (engine, network, parsing) all lives
+ * in the main process; this component only orchestrates state and swaps between
+ * the import panel and the review screen.
  */
 export function App(): React.JSX.Element {
-  const [pgn, setPgn] = useState('')
   const [engine, setEngine] = useState<EngineInfo | null>(null)
   const [progress, setProgress] = useState<AnalysisProgress | null>(null)
   const [result, setResult] = useState<AnalyzeGameResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -19,69 +25,64 @@ export function App(): React.JSX.Element {
     return window.chess.onAnalysisProgress(setProgress)
   }, [])
 
-  async function handleAnalyze(): Promise<void> {
+  const handleAnalyze = useCallback((pgn: string, depth: number): void => {
     setError(null)
+    setNotice(null)
     setResult(null)
     setBusy(true)
-    try {
-      const res = await window.chess.analyzeGame({ pgn })
-      setResult(res)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
-    } finally {
-      setBusy(false)
-      setProgress(null)
-    }
-  }
+    void window.chess
+      .analyzeGame({ pgn, depth })
+      .then(setResult)
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : String(err)
+        if (message.includes(CANCELLED_MARKER)) {
+          setNotice('Analysis cancelled.')
+        } else {
+          setError(message)
+        }
+      })
+      .finally(() => {
+        setBusy(false)
+        setProgress(null)
+      })
+  }, [])
+
+  const handleCancel = useCallback((): void => {
+    void window.chess.cancelAnalysis()
+  }, [])
+
+  const handleImportUrl = useCallback((url: string): Promise<string> => {
+    return window.chess.importFromUrl(url)
+  }, [])
+
+  const handleNewGame = useCallback((): void => {
+    setResult(null)
+    setError(null)
+    setNotice(null)
+  }, [])
 
   return (
     <main className="app">
-      <header>
+      <header className="app-header">
         <h1>Chess Analyzer</h1>
         <span className={engine?.available ? 'engine ok' : 'engine missing'}>
           {engine ? `${engine.name}: ${engine.available ? 'ready' : 'not found'}` : 'checking…'}
         </span>
       </header>
 
-      <textarea
-        value={pgn}
-        onChange={(e) => setPgn(e.target.value)}
-        placeholder="Paste a PGN here…"
-        rows={8}
-        spellCheck={false}
-      />
-
-      <div className="actions">
-        <button onClick={() => void handleAnalyze()} disabled={busy || pgn.trim().length === 0}>
-          {busy ? 'Analyzing…' : 'Analyze game'}
-        </button>
-        {progress && (
-          <span className="progress">
-            {progress.analyzedPlies} / {progress.totalPlies} positions
-          </span>
-        )}
-      </div>
-
-      {error && <p className="error">{error}</p>}
-
-      {result && (
-        <section className="results">
-          <p className="accuracy">
-            Accuracy — White {result.accuracy.white.toFixed(1)} · Black{' '}
-            {result.accuracy.black.toFixed(1)}
-          </p>
-          <ol className="moves">
-            {result.moves.map((m) => (
-              <li key={m.ply} className={`move ${m.classification}`}>
-                <span className="san">
-                  {m.moveNumber}
-                  {m.color === 'white' ? '.' : '…'} {m.san}
-                </span>
-                <span className="tag">{m.classification}</span>
-              </li>
-            ))}
-          </ol>
-        </section>
+      {result ? (
+        <ReviewScreen result={result} onNewGame={handleNewGame} />
+      ) : (
+        <ImportPanel
+          engine={engine}
+          busy={busy}
+          progress={progress}
+          error={error}
+          notice={notice}
+          onAnalyze={handleAnalyze}
+          onCancel={handleCancel}
+          onImportUrl={handleImportUrl}
+        />
       )}
     </main>
   )
