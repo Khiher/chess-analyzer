@@ -18,6 +18,16 @@ import { createCoachRuntime } from '../coach'
 const DEFAULT_DEPTH = 16
 
 /**
+ * Sentinel error message the renderer recognizes to render a cancellation as a
+ * neutral "cancelled" state rather than a hard failure. Electron serializes only
+ * the message string across IPC, so we key on it there.
+ */
+export const ANALYSIS_CANCELLED_MESSAGE = 'ANALYSIS_CANCELLED'
+
+/** The pool for the analysis currently running, if any, so cancel() can reach it. */
+let activePool: EnginePool | null = null
+
+/**
  * Registers every IPC handler exactly once. The renderer reaches these only
  * through the preload bridge; nothing here trusts renderer input beyond the
  * typed contract, and all engine/network/file work stays on this side.
@@ -51,6 +61,7 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
       }
 
       const pool = new EnginePool(enginePath)
+      activePool = pool
       await pool.start()
       try {
         const review = await analyzeGame(req.pgn, pool, {
@@ -64,14 +75,20 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
         })
         lastReview = review
         return review
+      } catch (err) {
+        // Translate a cancellation into the sentinel the renderer expects; let
+        // any genuine engine/parse error propagate unchanged.
+        if (pool.wasCancelled) throw new Error(ANALYSIS_CANCELLED_MESSAGE)
+        throw err
       } finally {
         await pool.stop()
+        if (activePool === pool) activePool = null
       }
     }
   )
 
-  ipcMain.handle(IpcChannel.CancelAnalysis, () => {
-    // Cancellation is a follow-up: track the active pool and stop() it here.
+  ipcMain.handle(IpcChannel.CancelAnalysis, async () => {
+    await activePool?.cancel()
   })
 
   ipcMain.handle(IpcChannel.GetEngineInfo, (): EngineInfo => {
